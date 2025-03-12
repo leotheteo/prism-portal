@@ -1,55 +1,47 @@
-import { User, Submission, InsertUser, InsertSubmission } from "@shared/schema";
-import createMemoryStore from "memorystore";
+import { users, submissions, faqs, type User, type InsertUser, type Submission, type FAQ } from "@shared/schema";
 import session from "express-session";
-import { scrypt, randomBytes } from "crypto";
-import { promisify } from "util";
+import createMemoryStore from "memorystore";
 
 const MemoryStore = createMemoryStore(session);
-const scryptAsync = promisify(scrypt);
-
-async function hashPassword(password: string) {
-  const salt = randomBytes(16).toString("hex");
-  const buf = (await scryptAsync(password, salt, 64)) as Buffer;
-  return `${buf.toString("hex")}.${salt}`;
-}
 
 export interface IStorage {
   getUser(id: number): Promise<User | undefined>;
   getUserByUsername(username: string): Promise<User | undefined>;
-  createUser(user: InsertUser & { isTeamMember?: boolean }): Promise<User>;
-  createSubmission(submission: InsertSubmission & { createdAt: string }): Promise<Submission>;
+  createUser(user: InsertUser): Promise<User>;
+
+  createSubmission(submission: Submission): Promise<Submission>;
   getSubmissions(): Promise<Submission[]>;
   getSubmission(id: number): Promise<Submission | undefined>;
-  updateSubmissionStatus(id: number, status: string): Promise<Submission | undefined>;
-  deleteSubmissionFile(id: number, type: string, index?: number): Promise<Submission | undefined>;
+  updateSubmission(id: number, status: "approved" | "declined"): Promise<void>;
+  deleteTrack(id: number, trackIndex: number): Promise<void>;
+  deleteArtwork(id: number): Promise<void>;
+
+  createFaq(faq: FAQ): Promise<FAQ>;
+  getFaqs(): Promise<FAQ[]>;
+  updateFaq(id: number, faq: Partial<FAQ>): Promise<void>;
+  deleteFaq(id: number): Promise<void>;
+
   sessionStore: session.Store;
 }
 
 export class MemStorage implements IStorage {
   private users: Map<number, User>;
   private submissions: Map<number, Submission>;
-  public sessionStore: session.Store;
+  private faqs: Map<number, FAQ>;
   private currentUserId: number;
   private currentSubmissionId: number;
+  private currentFaqId: number;
+  sessionStore: session.Store;
 
   constructor() {
     this.users = new Map();
     this.submissions = new Map();
+    this.faqs = new Map();
     this.currentUserId = 1;
     this.currentSubmissionId = 1;
+    this.currentFaqId = 1;
     this.sessionStore = new MemoryStore({
       checkPeriod: 86400000,
-    });
-
-    // Create team member account
-    this.initializeTeamMember();
-  }
-
-  private async initializeTeamMember() {
-    await this.createUser({
-      username: "Leo",
-      password: await hashPassword("Ms425729"),
-      isTeamMember: true,
     });
   }
 
@@ -63,66 +55,79 @@ export class MemStorage implements IStorage {
     );
   }
 
-  async createUser(insertUser: InsertUser & { isTeamMember?: boolean }): Promise<User> {
+  async createUser(insertUser: InsertUser): Promise<User> {
     const id = this.currentUserId++;
-    const user: User = {
-      ...insertUser,
-      id,
-      isTeamMember: insertUser.isTeamMember ?? false
-    };
+    const user = { id, role: insertUser.role, username: insertUser.username, password: insertUser.password };
     this.users.set(id, user);
     return user;
   }
 
-  async createSubmission(submission: InsertSubmission & { createdAt: string }): Promise<Submission> {
+  async createSubmission(submission: Submission): Promise<Submission> {
     const id = this.currentSubmissionId++;
-    const newSubmission: Submission = {
-      ...submission,
-      id,
-      status: "pending",
-    };
+    const newSubmission = { ...submission, id };
+    console.log("Creating submission:", newSubmission); // Add logging
     this.submissions.set(id, newSubmission);
     return newSubmission;
   }
 
   async getSubmissions(): Promise<Submission[]> {
-    return Array.from(this.submissions.values());
+    const subs = Array.from(this.submissions.values());
+    console.log("Retrieved submissions:", subs); // Add logging
+    return subs;
   }
 
   async getSubmission(id: number): Promise<Submission | undefined> {
     return this.submissions.get(id);
   }
 
-  async updateSubmissionStatus(id: number, status: string): Promise<Submission | undefined> {
+  async updateSubmission(id: number, status: "approved" | "declined"): Promise<void> {
     const submission = this.submissions.get(id);
-    if (!submission) return undefined;
-
-    const updatedSubmission = { ...submission, status };
-    this.submissions.set(id, updatedSubmission);
-    return updatedSubmission;
+    if (submission) {
+      submission.status = status;
+      this.submissions.set(id, submission);
+    }
   }
 
-  async deleteSubmissionFile(id: number, type: string, index?: number): Promise<Submission | undefined> {
+  async deleteTrack(id: number, trackIndex: number): Promise<void> {
     const submission = this.submissions.get(id);
-    if (!submission) return undefined;
-
-    let updatedSubmission: Submission;
-    if (type === "artwork") {
-      updatedSubmission = { ...submission, artworkUrl: null };
-    } else if (type === "audio" && typeof index === "number") {
-      const tracks = [...submission.tracks];
-      if (index >= 0 && index < tracks.length) {
-        tracks[index] = { ...tracks[index], audioFile: { url: "", title: "", trackNumber: index + 1 } };
-        updatedSubmission = { ...submission, tracks };
-      } else {
-        return undefined;
-      }
-    } else {
-      return undefined;
+    if (submission && submission.tracks && submission.tracks.length > trackIndex) {
+      // Remove the track from the array
+      submission.tracks.splice(trackIndex, 1);
+      this.submissions.set(id, submission);
+      console.log(`Deleted track ${trackIndex} from submission ${id}`);
     }
+  }
+  
+  async deleteArtwork(id: number): Promise<void> {
+    const submission = this.submissions.get(id);
+    if (submission) {
+      // Set the artwork to null
+      submission.artwork = null;
+      this.submissions.set(id, submission);
+      console.log(`Deleted artwork from submission ${id}`);
+    }
+  }
 
-    this.submissions.set(id, updatedSubmission);
-    return updatedSubmission;
+  async createFaq(faq: FAQ): Promise<FAQ> {
+    const id = this.currentFaqId++;
+    const newFaq = { ...faq, id };
+    this.faqs.set(id, newFaq);
+    return newFaq;
+  }
+
+  async getFaqs(): Promise<FAQ[]> {
+    return Array.from(this.faqs.values()).sort((a, b) => a.order - b.order);
+  }
+
+  async updateFaq(id: number, faq: Partial<FAQ>): Promise<void> {
+    const existing = this.faqs.get(id);
+    if (existing) {
+      this.faqs.set(id, { ...existing, ...faq });
+    }
+  }
+
+  async deleteFaq(id: number): Promise<void> {
+    this.faqs.delete(id);
   }
 }
 
