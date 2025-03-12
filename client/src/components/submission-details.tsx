@@ -69,7 +69,7 @@ export function SubmissionDetails({ submission, onClose }: SubmissionDetailsProp
       return res.json();
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["submissions"] });
+      queryClient.invalidateQueries({ queryKey: ["submission", submission.id] });
       toast({ 
         title: "Artwork deleted",
         description: "The artwork has been successfully deleted.",
@@ -84,6 +84,33 @@ export function SubmissionDetails({ submission, onClose }: SubmissionDetailsProp
       });
     }
   });
+
+  // Using a different name for the second mutation
+  const removeArtworkMutation = useMutation({
+    mutationFn: async () => {
+      const res = await fetch(`/api/submissions/${submission.id}/artwork`, {
+        method: "DELETE",
+      });
+      if (!res.ok) throw new Error("Failed to delete artwork");
+      return res.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["submission", submission.id] });
+      toast({ 
+        title: "Artwork deleted",
+        description: "The artwork has been successfully deleted.",
+      });
+      setIsDeleteArtworkDialogOpen(false);
+    },
+    onError: () => {
+      toast({ 
+        title: "Error",
+        description: "Failed to delete artwork. Please try again.",
+        variant: "destructive",
+      });
+    }
+  });
+
 
   const handleDeleteTrack = (trackIndex: number) => {
     setSelectedTrackIndex(trackIndex);
@@ -101,7 +128,7 @@ export function SubmissionDetails({ submission, onClose }: SubmissionDetailsProp
   };
 
   const confirmDeleteArtwork = () => {
-    deleteArtworkMutation.mutate();
+    removeArtworkMutation.mutate();
   };
 
   const handleDownloadTrack = async (trackIndex: number) => {
@@ -369,7 +396,7 @@ export function SubmissionDetails({ submission, onClose }: SubmissionDetailsProp
           <AlertDialogFooter>
             <AlertDialogCancel>Cancel</AlertDialogCancel>
             <AlertDialogAction onClick={confirmDeleteArtwork}>
-              {deleteArtworkMutation.isPending ? (
+              {removeArtworkMutation.isPending ? (
                 <span className="flex items-center">
                   <Loader2 className="mr-2 h-4 w-4 animate-spin" />
                   Deleting...
