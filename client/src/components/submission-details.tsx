@@ -1,4 +1,3 @@
-
 import { useState } from "react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { 
@@ -22,7 +21,7 @@ import {
 } from "@/components/ui/alert-dialog";
 import { Button } from "@/components/ui/button";
 import { toast } from "@/components/ui/use-toast";
-import { Download, Trash2 } from "lucide-react";
+import { Download, Trash2, Loader2 } from "lucide-react";
 import type { Submission } from "@shared/schema";
 
 interface SubmissionDetailsProps {
@@ -41,197 +40,50 @@ export function SubmissionDetails({ submission, onClose }: SubmissionDetailsProp
       const res = await fetch(`/api/submissions/${submission.id}/tracks/${trackIndex}`, {
         method: "DELETE",
       });
-      if (!res.ok) {
-        throw new Error("Failed to delete track");
-      }
+      if (!res.ok) throw new Error("Failed to delete track");
+      return res.json();
     },
     onSuccess: () => {
-      toast({
+      queryClient.invalidateQueries({ queryKey: ["submissions"] });
+      toast({ 
         title: "Track deleted",
         description: "The track has been successfully deleted.",
       });
-      queryClient.invalidateQueries({ queryKey: ["submissions"] });
+      setIsDeleteTrackDialogOpen(false);
     },
-    onError: (error) => {
-      toast({
+    onError: () => {
+      toast({ 
         title: "Error",
-        description: `Failed to delete track: ${error.message}`,
-        variant: "destructive",
-      });
-    },
-  });
-  
-  const deleteArtworkMutation = useMutation({
-    mutationFn: async () => {
-      const res = await fetch(`/api/submissions/${submission.id}/artwork`, {
-        method: "DELETE",
-      });
-      if (!res.ok) {
-        throw new Error("Failed to delete artwork");
-      }
-    },
-    onSuccess: () => {
-      toast({
-        title: "Artwork deleted",
-        description: "The artwork has been successfully deleted.",
-      });
-      queryClient.invalidateQueries({ queryKey: ["submissions"] });
-    },
-    onError: (error) => {
-      toast({
-        title: "Error",
-        description: `Failed to delete artwork: ${error.message}`,
-        variant: "destructive",
-      });
-    },
-  });
-  
-  const handleDownloadTrack = async (trackIndex: number) => {
-    try {
-      const res = await fetch(`/api/submissions/${submission.id}/tracks/${trackIndex}/download`);
-      if (!res.ok) {
-        throw new Error("Failed to download track");
-      }
-      
-      const data = await res.json();
-      if (data.downloadUrl) {
-        // Create a temporary link and trigger download
-        const link = document.createElement('a');
-        link.href = data.downloadUrl;
-        link.target = '_blank';
-        link.download = submission.tracks[trackIndex].title + '.mp3'; // Assuming mp3 format
-        document.body.appendChild(link);
-        link.click();
-        document.body.removeChild(link);
-        
-        toast({
-          title: "Download started",
-          description: "Your download should begin shortly.",
-        });
-      }
-    } catch (error) {
-      toast({
-        title: "Error",
-        description: "Failed to download track",
+        description: "Failed to delete track. Please try again.",
         variant: "destructive",
       });
     }
-  };
-  
-  const handleDownloadArtwork = async () => {
-    try {
-      const res = await fetch(`/api/submissions/${submission.id}/artwork/download`);
-      if (!res.ok) {
-        throw new Error("Failed to download artwork");
-      }
-      
-      const data = await res.json();
-      if (data.downloadUrl) {
-        // Create a temporary link and trigger download
-        const link = document.createElement('a');
-        link.href = data.downloadUrl;
-        link.target = '_blank';
-        link.download = submission.artwork.name || 'artwork.jpg';
-        document.body.appendChild(link);
-        link.click();
-        document.body.removeChild(link);
-        
-        toast({
-          title: "Download started",
-          description: "Your download should begin shortly.",
-        });
-      }
-    } catch (error) {
-      toast({
-        title: "Error",
-        description: "Failed to download artwork",
-        variant: "destructive",
-      });
-    }
-  };
+  });
 
   const deleteArtworkMutation = useMutation({
     mutationFn: async () => {
       const res = await fetch(`/api/submissions/${submission.id}/artwork`, {
         method: "DELETE",
       });
-      if (!res.ok) {
-        throw new Error("Failed to delete artwork");
-      }
+      if (!res.ok) throw new Error("Failed to delete artwork");
+      return res.json();
     },
     onSuccess: () => {
-      toast({
+      queryClient.invalidateQueries({ queryKey: ["submissions"] });
+      toast({ 
         title: "Artwork deleted",
         description: "The artwork has been successfully deleted.",
       });
-      queryClient.invalidateQueries({ queryKey: ["submissions"] });
+      setIsDeleteArtworkDialogOpen(false);
     },
-    onError: (error) => {
-      toast({
+    onError: () => {
+      toast({ 
         title: "Error",
-        description: `Failed to delete artwork: ${error.message}`,
+        description: "Failed to delete artwork. Please try again.",
         variant: "destructive",
       });
-    },
+    }
   });
-
-  const handleDownloadTrack = async (trackIndex: number) => {
-    try {
-      const res = await fetch(`/api/submissions/${submission.id}/tracks/${trackIndex}/download`);
-      if (!res.ok) {
-        throw new Error("Failed to download track");
-      }
-      const data = await res.json();
-      
-      // Create a temporary anchor element to trigger the download
-      const link = document.createElement("a");
-      link.href = data.downloadUrl;
-      link.download = submission.tracks[trackIndex].title || `track-${trackIndex}.mp3`;
-      document.body.appendChild(link);
-      link.click();
-      document.body.removeChild(link);
-      
-      toast({
-        title: "Download started",
-        description: "Your download has started.",
-      });
-    } catch (error) {
-      toast({
-        title: "Error",
-        description: `Failed to download track: ${error.message}`,
-        variant: "destructive",
-      });
-    }
-  };
-
-  const handleDownloadArtwork = async () => {
-    try {
-      const res = await fetch(`/api/submissions/${submission.id}/artwork/download`);
-      if (!res.ok) {
-        throw new Error("Failed to download artwork");
-      }
-      const data = await res.json();
-      
-      // Create a temporary anchor element to trigger the download
-      const link = document.createElement("a");
-      link.href = data.downloadUrl;
-      link.download = `artwork-${submission.id}.jpg`;
-      document.body.appendChild(link);
-      link.click();
-      document.body.removeChild(link);
-      
-      toast({
-        title: "Download started",
-        description: "Your download has started.",
-      });
-    } catch (error) {
-      toast({
-        title: "Error",
-        description: `Failed to download artwork: ${error.message}`,
-        variant: "destructive",
-      });
-    }
-  };
 
   const handleDeleteTrack = (trackIndex: number) => {
     setSelectedTrackIndex(trackIndex);
@@ -242,7 +94,6 @@ export function SubmissionDetails({ submission, onClose }: SubmissionDetailsProp
     if (selectedTrackIndex !== null) {
       deleteTrackMutation.mutate(selectedTrackIndex);
     }
-    setIsDeleteTrackDialogOpen(false);
   };
 
   const handleDeleteArtwork = () => {
@@ -251,7 +102,62 @@ export function SubmissionDetails({ submission, onClose }: SubmissionDetailsProp
 
   const confirmDeleteArtwork = () => {
     deleteArtworkMutation.mutate();
-    setIsDeleteArtworkDialogOpen(false);
+  };
+
+  const handleDownloadTrack = async (trackIndex: number) => {
+    try {
+      const response = await fetch(`/api/submissions/${submission.id}/tracks/${trackIndex}/download`);
+      if (!response.ok) throw new Error("Failed to get download URL");
+
+      const data = await response.json();
+
+      // Create a temporary anchor element and trigger download
+      const link = document.createElement('a');
+      link.href = data.downloadUrl;
+      link.setAttribute('download', data.fileName || 'track.mp3');
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+
+      toast({ 
+        title: "Download started",
+        description: "Your track download has started.",
+      });
+    } catch (error) {
+      toast({ 
+        title: "Download failed",
+        description: "Failed to download track. Please try again.",
+        variant: "destructive",
+      });
+    }
+  };
+
+  const handleDownloadArtwork = async () => {
+    try {
+      const response = await fetch(`/api/submissions/${submission.id}/artwork/download`);
+      if (!response.ok) throw new Error("Failed to get download URL");
+
+      const data = await response.json();
+
+      // Create a temporary anchor element and trigger download
+      const link = document.createElement('a');
+      link.href = data.downloadUrl;
+      link.setAttribute('download', data.fileName || 'artwork.jpg');
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+
+      toast({ 
+        title: "Download started",
+        description: "Your artwork download has started.",
+      });
+    } catch (error) {
+      toast({ 
+        title: "Download failed",
+        description: "Failed to download artwork. Please try again.",
+        variant: "destructive",
+      });
+    }
   };
 
   return (
@@ -305,12 +211,15 @@ export function SubmissionDetails({ submission, onClose }: SubmissionDetailsProp
         {/* Tracks Section */}
         <div className="space-y-4">
           <h3 className="text-lg font-semibold">Tracks</h3>
-          <div className="space-y-3">
-            {submission.tracks && submission.tracks.map((track, index) => (
-              <div key={index} className="p-3 border rounded-md">
-                <div className="flex justify-between items-center mb-2">
+          {submission.tracks && submission.tracks.length > 0 ? (
+            <div className="space-y-4">
+              {submission.tracks.map((track, index) => (
+                <div key={index} className="flex justify-between items-center p-3 border rounded-md">
                   <div>
                     <p className="font-medium">{track.title}</p>
+                    {track.isrc && (
+                      <p className="text-sm text-muted-foreground">ISRC: {track.isrc}</p>
+                    )}
                   </div>
                   <div className="flex space-x-2">
                     <Button 
@@ -331,23 +240,11 @@ export function SubmissionDetails({ submission, onClose }: SubmissionDetailsProp
                     </Button>
                   </div>
                 </div>
-                <div className="grid grid-cols-2 gap-2 mt-1">
-                  {track.isrc && (
-                    <div>
-                      <p className="text-xs font-medium text-muted-foreground">ISRC:</p>
-                      <p className="text-sm">{track.isrc}</p>
-                    </div>
-                  )}
-                  {track.upc && (
-                    <div>
-                      <p className="text-xs font-medium text-muted-foreground">UPC:</p>
-                      <p className="text-sm">{track.upc}</p>
-                    </div>
-                  )}
-                </div>
-              </div>
-            ))}
-          </div>
+              ))}
+            </div>
+          ) : (
+            <p className="text-muted-foreground">No tracks available</p>
+          )}
         </div>
 
         {/* Additional Details */}
@@ -379,7 +276,7 @@ export function SubmissionDetails({ submission, onClose }: SubmissionDetailsProp
               </div>
             )}
           </div>
-          
+
           {/* Streaming Links */}
           {submission.streamingLinks && Object.keys(submission.streamingLinks).length > 0 && (
             <div className="mt-4">
@@ -412,7 +309,7 @@ export function SubmissionDetails({ submission, onClose }: SubmissionDetailsProp
               </div>
             </div>
           )}
-          
+
           {/* Release Information */}
           <div className="mt-4">
             <h4 className="text-md font-semibold">Release Information</h4>
@@ -434,36 +331,53 @@ export function SubmissionDetails({ submission, onClose }: SubmissionDetailsProp
             </div>
           </div>
         </div>
-      </CardContent>ent>
+      </CardContent>
 
-      {/* Delete Track Confirmation Dialog */}
+      {/* Alert Dialogs */}
       <AlertDialog open={isDeleteTrackDialogOpen} onOpenChange={setIsDeleteTrackDialogOpen}>
         <AlertDialogContent>
           <AlertDialogHeader>
             <AlertDialogTitle>Are you sure?</AlertDialogTitle>
             <AlertDialogDescription>
-              This action cannot be undone. This will permanently delete the track from the submission.
+              This action cannot be undone. This will permanently delete the track.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
             <AlertDialogCancel>Cancel</AlertDialogCancel>
-            <AlertDialogAction onClick={confirmDeleteTrack}>Delete</AlertDialogAction>
+            <AlertDialogAction onClick={confirmDeleteTrack}>
+              {deleteTrackMutation.isPending ? (
+                <span className="flex items-center">
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  Deleting...
+                </span>
+              ) : (
+                "Delete"
+              )}
+            </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
 
-      {/* Delete Artwork Confirmation Dialog */}
       <AlertDialog open={isDeleteArtworkDialogOpen} onOpenChange={setIsDeleteArtworkDialogOpen}>
         <AlertDialogContent>
           <AlertDialogHeader>
             <AlertDialogTitle>Are you sure?</AlertDialogTitle>
             <AlertDialogDescription>
-              This action cannot be undone. This will permanently delete the artwork from the submission.
+              This action cannot be undone. This will permanently delete the artwork.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
             <AlertDialogCancel>Cancel</AlertDialogCancel>
-            <AlertDialogAction onClick={confirmDeleteArtwork}>Delete</AlertDialogAction>
+            <AlertDialogAction onClick={confirmDeleteArtwork}>
+              {deleteArtworkMutation.isPending ? (
+                <span className="flex items-center">
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  Deleting...
+                </span>
+              ) : (
+                "Delete"
+              )}
+            </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
